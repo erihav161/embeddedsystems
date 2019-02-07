@@ -1,58 +1,62 @@
 #include <Arduino_FreeRTOS.h>
+#include <semphr.h>
 
 int led1 = 5;
 int led2 = 6;
-float in;
 
-void task1(void *param) {
-  const char *out = "Task1 is running!\n";
-  if (in > 0 && in <= 25) {
-    analogWrite(led1, 64);
-  }
-  if (in >= 26 && in <= 50) {
-    analogWrite(led1, 128);
-  }
-  if (in >= 51 && in <= 75) {
-    analogWrite(led1, 192);
-  }
-  if (in >= 76 && in <= 100) {
-    analogWrite(led1, 255);
-  }
-}
+volatile float sharedIn = 0;
+SemaphoreHandle_t mtx = NULL;
 
-void task2(void *param) {
-  const char *out = "Task2 is running!\n";
-  if (in > 0 && in <= 25) {
-    analogWrite(led2, 64);
-  }
-  if (in >= 26 && in <= 50) {
-    analogWrite(led2, 128);
-  }
-  if (in >= 51 && in <= 75) {
-    analogWrite(led2, 192);
-  }
-  if (in >= 76 && in <= 100) {
-    analogWrite(led2, 255);
-  }
-
-}
-
-void task3(void *param) {
-  const char *out = "Choose a floating number between 1.0 and 3.0: \n";
-  String inString = "";
-
+void consumer1(void *param) {
+  const char *out = "Consumer 1 is running!\n";
+  Serial.print(out);
   for(;;) {
-    Serial.print(out);
-    int inChar = Serial.read();
-    if (inChar != '\n') {
-      inString += (char)inChar;
-      Serial.print(inString);
+    xSemaphoreTake(mtx, 0);
+    float taskOneIn = sharedIn;
+    int runTask = (int)taskOneIn;
+    if(runTask == 1) {
+      int brightness = (taskOneIn-1)*255;
+      Serial.print("Brightness: ");
+      Serial.println(brightness);
+      analogWrite(led1, brightness);
     }
-    else {
-      float in = inString.toFloat();
-      inString = "";
-    }
+    xSemaphoreGive(mtx);
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
+}
+
+void consumer2(void *param) {
+  const char *out = "Consumer 2 is running!\n";
+  Serial.print(out);
+  for(;;) {
+    xSemaphoreTake(mtx, 0);
+    float taskTwoIn = sharedIn;
+    int runTask = (int)taskTwoIn;
+    if(runTask == 2) {
+      int brightness = (taskTwoIn-2)*255;
+      Serial.print("Brightness: ");
+      Serial.println(brightness);
+      analogWrite(led2, brightness);
+    }
+    xSemaphoreGive(mtx);
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+}
+
+void producer(void *param) {
+  const char *out = "Choose a floating number between 1.0 and 3.0: \n";
+  Serial.print(out);
+  for(;;){
+    while (Serial.available() > 0) {
+      sharedIn = Serial.parseFloat();
+      Serial.read();
+      Serial.print("Producer: ");
+      Serial.println(sharedIn);
+    }
+  
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+
 }
 
 void setup() {
@@ -60,10 +64,12 @@ void setup() {
   pinMode(led1, OUTPUT);
   pinMode(led2, OUTPUT);
 
-  xTaskCreate(task1, "T1", 256, NULL, 0, NULL);
-  xTaskCreate(task2, "T2", 256, NULL, 0, NULL);
-  xTaskCreate(task3, "T3", 256, NULL, 0, NULL);
-
+  mtx = xSemaphoreCreateMutex();
+  if(mtx != NULL) {
+    xTaskCreate(consumer1, (const portCHAR *)"consumer1", 128, NULL, 1, NULL);
+    xTaskCreate(consumer2, (const portCHAR *)"consumer2", 128, NULL, 1, NULL);
+    xTaskCreate(producer, (const portCHAR *)"producer", 128, NULL, 0, NULL); 
+  }
 }
 
 void loop() {

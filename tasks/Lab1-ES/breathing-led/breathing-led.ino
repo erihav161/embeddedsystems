@@ -16,6 +16,7 @@ void loop() {
 
   // change the brightness for the next through loop
   brightness = brightness + fadeAmount;
+  Serial.println(brightness);
 
   // reverse the direction of the fading at the ends of the fade
   if(brightness <= 0 || brightness >= 255) {
