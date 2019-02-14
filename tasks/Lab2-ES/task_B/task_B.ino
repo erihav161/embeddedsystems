@@ -21,7 +21,7 @@ void consumer1(void *param) {
       analogWrite(led1, brightness);
     }
     xSemaphoreGive(mtx);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
@@ -39,7 +39,7 @@ void consumer2(void *param) {
       analogWrite(led2, brightness);
     }
     xSemaphoreGive(mtx);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
