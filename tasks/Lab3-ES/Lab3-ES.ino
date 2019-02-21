@@ -16,6 +16,7 @@
 int motorRight = 6;
 int motorRightFwd = 7;
 int motorRightBwd = 8;
+int drive;
 
 // Left Motor
 int motorLeft = 5;
@@ -34,6 +35,19 @@ int irPin = 10;
 IRrecv irReceiver(irPin);
 decode_results irResults;
 
+void driveForward(void *param) {
+  for(;;) {
+    if (drive == 123) {
+      analogWrite(motorRight, 100);
+      digitalWrite(motorRightFwd, HIGH);
+      digitalWrite(motorRightBwd, LOW);
+
+      analogWrite(motorLeft, 100);
+      digitalWrite(motorLeftFwd, HIGH);
+      digitalWrite(motorLeftBwd, LOW);
+    }
+  }
+}
 
 void sensorTask(void *param) {
   for(;;) {
@@ -52,16 +66,28 @@ void sensorTask(void *param) {
 
 void irTask(void *param) {
   for(;;) {
-    if (irReceiver.decode(&irResults))
-      {
-      Serial.println(irResults.value, HEX);
+    if (irReceiver.decode(&irResults)) {
+      drive = irResults.value;
+      Serial.println(irResults.value);
       irReceiver.resume(); // Receive the next value
-      }
+    }
   }
 }
 
+void ISR1(void) {
+  analogWrite(motorRight, 0);
+  digitalWrite(motorRightFwd, LOW);
+  digitalWrite(motorRightBwd, LOW);
+
+  analogWrite(motorLeft, 0);
+  digitalWrite(motorLeftFwd, LOW);
+  digitalWrite(motorLeftBwd, LOW);
+}
 void setup() {
   Serial.begin(9600);
+
+  // Distance sensor interrupt
+  //attachInterrupt(digitalPinToInterrupt(intrPin), ISR1, RISING);
 
   // Motors
   pinMode(motorRight, OUTPUT);
@@ -80,8 +106,8 @@ void setup() {
   irReceiver.enableIRIn();
 
   xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 0, NULL);
-  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 0, NULL);
-
+  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 1, NULL);
+  xTaskCreate(driveForward, (const portCHAR *)"driveForward", 128, NULL, 0, NULL);
 }
 
 void loop() {
