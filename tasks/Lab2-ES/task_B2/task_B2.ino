@@ -19,7 +19,7 @@ void consumer1(void *param) {
   BaseType_t xStatus;
 
   for (;;) {
-    xStatus = xQueueReceive(myQ1, &(q1Value), 0);
+    xStatus = xQueueReceive(myQ1, &(q1Value), portMAX_DELAY);
     if (xStatus == pdPASS) {
       int brightness = (q1Value - 1) * 255;
       analogWrite(led1, brightness);
@@ -38,7 +38,7 @@ void consumer2(void *param) {
   BaseType_t xStatus;
 
   for (;;) {
-    xStatus = xQueueReceive(myQ2, &(q2Value), 0);
+    xStatus = xQueueReceive(myQ2, &(q2Value), portMAX_DELAY);
     if (xStatus == pdPASS) {
       int brightness = (q2Value - 2) * 255;
       analogWrite(led2, brightness);

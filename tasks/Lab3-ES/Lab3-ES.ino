@@ -22,28 +22,47 @@ int motorLeft = 5;
 int motorLeftFwd = 4;
 int motorLeftBwd = 2;
 
-// Distanvce Sensor
-int trig = 13;
-int echo = 12;
+// Distance Sensor
+int sensorTrig = 13;
+int sensorEcho = 12;
 unsigned int sensorDelay = 10;
 int echoRead;
+float distanceToObject;
+
+// IR Remote
+int irPin = 10;
+IRrecv irReceiver(irPin);
+decode_results irResults;
+
 
 void sensorTask(void *param) {
   for(;;) {
-    // Send pulse to Trig pin
-    digitalWrite(trig, HIGH);
+    // Send pulse to sensorTrig pin
+    digitalWrite(sensorTrig, HIGH);
     delayMicroseconds(sensorDelay);
-    digitalWrite(trig, LOW);
+    digitalWrite(sensorTrig, LOW);
 
-    echoRead = pulseIn(echo, HIGH);
-    Serial.print("Echo read: ");
-    Serial.println(echoRead);
+    echoRead = pulseIn(sensorEcho, HIGH);
+    distanceToObject = echoRead/34.30;
+
+    // Serial.print("Distance to object: ");
+    // Serial.println(distanceToObject);
+  }
+}
+
+void irTask(void *param) {
+  for(;;) {
+    if (irReceiver.decode(&irResults))
+      {
+      Serial.println(irResults.value, HEX);
+      irReceiver.resume(); // Receive the next value
+      }
   }
 }
 
 void setup() {
   Serial.begin(9600);
-  
+
   // Motors
   pinMode(motorRight, OUTPUT);
   pinMode(motorRightFwd, OUTPUT);
@@ -53,10 +72,15 @@ void setup() {
   pinMode(motorLeftBwd, OUTPUT);
 
   // Sensor
-  pinMode(trig, OUTPUT);
-  pinMode(echo, INPUT);
+  pinMode(sensorTrig, OUTPUT);
+  pinMode(sensorEcho, INPUT);
 
-  xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 1, NULL);
+  // IR Receiver
+  pinMode(irPin, INPUT);
+  irReceiver.enableIRIn();
+
+  xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 0, NULL);
+  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 0, NULL);
 
 }
 
