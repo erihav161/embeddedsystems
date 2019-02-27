@@ -37,6 +37,7 @@ decode_results irResults;
 
 void driveForward(void *param) {
   for(;;) {
+    // Serial.println("DriveForward");
     if (drive == 123) {
       analogWrite(motorRight, 100);
       digitalWrite(motorRightFwd, HIGH);
@@ -68,7 +69,8 @@ void irTask(void *param) {
   for(;;) {
     if (irReceiver.decode(&irResults)) {
       drive = irResults.value;
-      Serial.println(irResults.value);
+      Serial.println(drive,HEX);
+
       irReceiver.resume(); // Receive the next value
     }
   }
@@ -106,7 +108,7 @@ void setup() {
   irReceiver.enableIRIn();
 
   xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 0, NULL);
-  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 1, NULL);
+  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 0, NULL);
   xTaskCreate(driveForward, (const portCHAR *)"driveForward", 128, NULL, 0, NULL);
 }
 
