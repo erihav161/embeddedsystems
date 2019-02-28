@@ -1,6 +1,5 @@
 #include <Arduino_FreeRTOS.h>
 #include <IRremote.h>
-#include <semphr.h>
 
 
 #define POWER 0x00FF629D
@@ -13,14 +12,15 @@
 #define RIGHT 0x00FF7A85
 #define SELECT 0x00FF18E7
 
-// Semaphores
-SemaphoreHandle_t mtx = NULL;
+// Motor settings
+int speed = 100;
+volatile int drive = 0;
 
 // Right Motor
 int motorRight = 5;
 int motorRightFwd = 4;
 int motorRightBwd = 2;
-int drive;
+
 
 // Left Motor
 int motorLeft = 6;
@@ -39,12 +39,13 @@ int irPin = 10;
 IRrecv irReceiver(irPin);
 decode_results irResults;
 
+// General delay variables
+int taskDelay = 50;
+
 void driveTask(void *param) {
   for(;;) {
-    xSemaphoreTake(mtx, 0);
-    int driveSetting = drive;
 
-    switch(irResults.value){
+    switch(drive){
       case 0:
         Serial.println("IDLE");
         analogWrite(motorRight, 0);
@@ -52,59 +53,74 @@ void driveTask(void *param) {
         break;
       case POWER: // POWER
         Serial.println("POWER");
+        if (speed > 0) {
+          speed = 0;
+          analogWrite(motorRight, speed);
+          analogWrite(motorLeft, speed);
+        } else {
+          speed = 150;
+        }
         break;
       case A: // A
         Serial.println("33.33% power!");
+        speed = 100;
         break;
       case B: // B
         Serial.println("66.66% power!!");
+        speed = 170;
         break;
       case C: // C
         Serial.println("100% poweeer!!!!!");
+        speed = 255;
         break;
       case UP: // UP
         Serial.println("UP");
-        analogWrite(motorRight, 100);
+        analogWrite(motorRight, speed);
         digitalWrite(motorRightFwd, HIGH);
         digitalWrite(motorRightBwd, LOW);
 
-        analogWrite(motorLeft, 100);
+        analogWrite(motorLeft, speed);
         digitalWrite(motorLeftFwd, HIGH);
         digitalWrite(motorLeftBwd, LOW);
-        break ;  
+        break;
       case DOWN:
         Serial.println("DOWN");
-        analogWrite(motorRight, 100);
+        analogWrite(motorRight, speed);
         digitalWrite(motorRightFwd, LOW);
         digitalWrite(motorRightBwd, HIGH);
 
-        analogWrite(motorLeft, 100);
+        analogWrite(motorLeft, speed);
         digitalWrite(motorLeftFwd, LOW);
         digitalWrite(motorLeftBwd, HIGH);
-        break ;               
+        break;
       case LEFT:
         Serial.println("LEFT");
-        analogWrite(motorRight, 100);
+        analogWrite(motorRight, speed);
         digitalWrite(motorRightFwd, HIGH);
         digitalWrite(motorRightBwd, LOW);
 
         analogWrite(motorLeft, 0);
         digitalWrite(motorLeftFwd, LOW);
         digitalWrite(motorLeftBwd, LOW);
-        break ;  
+        break;
       case RIGHT:
         Serial.println("RIGHT");
         analogWrite(motorRight, 0);
         digitalWrite(motorRightFwd, LOW);
         digitalWrite(motorRightBwd, LOW);
 
-        analogWrite(motorLeft, 100);
+        analogWrite(motorLeft, speed);
         digitalWrite(motorLeftFwd, HIGH);
         digitalWrite(motorLeftBwd, LOW);
-        break ;  
+        break;
       case SELECT:
       Serial.println("SELECT");
+      // Do something cool, then use "delay()" to busy wait while the cool stuff is happening
+      //
+        analogWrite(motorRight, 0);
+        analogWrite(motorLeft, 0);
     }
+    vTaskDelay(pdMS_TO_TICKS(20));
   }
 }
 
@@ -120,42 +136,45 @@ void sensorTask(void *param) {
 
     // Serial.print("Distance to object: ");
     // Serial.println(distanceToObject);
+    if (distanceToObject < 20) {
+      drive = 0;
+    }
+    vTaskDelay(pdMS_TO_TICKS(taskDelay));
   }
 }
 
 void irTask(void *param) {
   for(;;) {
-
-    if (irReceiver.decode(&irResults)) {
-      if (irResults.value == 0XFFFFFFFF)
-        irResults.value = drive;
-
-      drive = irResults.value;
-      irReceiver.resume(); 
+    if (irReceiver.decode(&irResults) == 1) {
+      if (irResults.value == 0XFFFFFFFF) {
+        // Do nothing just continue
+      } else {
+        drive = irResults.value;
+      }
+      irReceiver.resume();
     }
     else {
       drive = 0;
     }
+    vTaskDelay(pdMS_TO_TICKS(150));
   }
 }
 
-void ISR1(void) {
-  analogWrite(motorRight, 0);
-  digitalWrite(motorRightFwd, LOW);
-  digitalWrite(motorRightBwd, LOW);
+// void ISR1(void) {
+//   analogWrite(motorRight, 0);
+//   digitalWrite(motorRightFwd, LOW);
+//   digitalWrite(motorRightBwd, LOW);
 
-  analogWrite(motorLeft, 0);
-  digitalWrite(motorLeftFwd, LOW);
-  digitalWrite(motorLeftBwd, LOW);
-}
+//   analogWrite(motorLeft, 0);
+//   digitalWrite(motorLeftFwd, LOW);
+//   digitalWrite(motorLeftBwd, LOW);
+// }
+
 void setup() {
   Serial.begin(9600);
 
   // Distance sensor interrupt
-  //attachInterrupt(digitalPinToInterrupt(intrPin), ISR1, RISING);
-
-  // Mutex initialiser
-  mtx = xSemaphoreCreateMutex();
+  // attachInterrupt(digitalPinToInterrupt(intrPin), ISR1, RISING);
 
   // Motors
   pinMode(motorRight, OUTPUT);
@@ -173,21 +192,11 @@ void setup() {
   pinMode(irPin, INPUT);
   irReceiver.enableIRIn();
 
-  if (mtx != NULL) {
-    xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 0, NULL);
-    xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 0, NULL);
-    xTaskCreate(driveTask, (const portCHAR *)"driveTask", 128, NULL, 0, NULL);
-  } 
+  xTaskCreate(sensorTask, (const portCHAR *)"sensorTask", 128, NULL, 2, NULL);
+  xTaskCreate(irTask, (const portCHAR *)"irTask", 128, NULL, 0, NULL);
+  xTaskCreate(driveTask, (const portCHAR *)"driveTask", 128, NULL, 1, NULL);
 
 }
 
 void loop() {
-  // analogWrite(motorRight, 100);
-  // digitalWrite(motorRightFwd, HIGH);
-  // digitalWrite(motorRightBwd, LOW);
-
-  // analogWrite(motorLeft, 100);
-  // digitalWrite(motorLeftFwd, HIGH);
-  // digitalWrite(motorLeftBwd, LOW);
-
 }
